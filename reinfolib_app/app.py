@@ -20,26 +20,102 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-"""
-「このサービスは、国土交通省の不動産情報ライブラリのAPI機能を使用していますが、提供情報の最新性、正確性、完全性等が保証されたものではありません。」
-"""
 
 import streamlit as st
 import polars as pl
 import folium
 from streamlit_folium import st_folium
 
-df = pl.read_csv("data/data.csv")
 
-st.dataframe(df)
+@st.cache_data
+def read_data():
+    return pl.read_csv("data/data.csv")
 
 
-m = folium.Map([33.607, 130.418], zoom_start=12)
-for row in df.head(100).rows(named=True):
-    folium.Marker(
-        location=[row["Latitude"], row["Longitude"]],
-        popup=row["Age"],
-        tooltip=row["DistrictName"],
-    ).add_to(m)
+df = read_data()
 
-st_folium(m, width=1200, height=800)
+price_category_list = df["PriceCategory"].unique().sort().to_list()
+period_list = df["Period"].unique().sort(descending=True).to_list()
+prefecture_list = df["Prefecture"].unique().sort().to_list()
+
+st.header("成約坪単価Viewer")
+
+with st.expander("絞り込み条件", expanded=True):
+    st.subheader("地域")
+    col1, col2 = st.columns(2)
+    with col2:
+        prefecture_search = st.text_input("検索ワード（都道府県）")
+
+    with col1:
+        prefecture = st.selectbox(
+            "都道府県", [s for s in prefecture_list if prefecture_search in s]
+        )
+
+    municipality_list = (
+        df.filter(pl.col("Prefecture") == prefecture)["Municipality"]
+        .unique()
+        .sort()
+        .to_list()
+    )
+    with col2:
+        municipality_search = st.text_input("検索ワード（市区町村）")
+
+    with col1:
+        municipality = st.selectbox(
+            "市区町村", [s for s in municipality_list if municipality_search in s]
+        )
+
+    st.subheader("価格情報区分")
+    price_category = st.selectbox(
+        "価格情報区分",
+        price_category_list,
+        help=(
+            "「不動産取引価格情報」とは、土地・建物の取引を対象としたアンケート調査の結果得られた回答について、"
+            "個別の物件を特定できないよう加工した、国土交通省が保有し提供する不動産取引価格情報をいいます。"
+            "「成約価格情報」とは、指定流通機構（レインズ）保有の不動産取引価格情報を、"
+            "国土交通省が個別の不動産取引が特定できないよう加工し、消費者向け不動産取引情報サービスである、"
+            "「レインズ・マーケット・インフォメーション」（RMI）にて公表している情報をいいます。"
+        ),
+    )
+
+    st.subheader("時期")
+    period = st.selectbox("時期", period_list)
+
+df_extract = df.filter(
+    (pl.col("PriceCategory") == price_category)
+    & (pl.col("Prefecture") == prefecture)
+    & (pl.col("Municipality") == municipality)
+)
+
+
+if df_extract.shape[0] == 0:
+    st.write("データがありません。絞り込み条件を変えて再実行してください。")
+else:
+    df_agg = (
+        df_extract.group_by(
+            "Period", "Municipality", "DistrictName", "Latitude", "Longitude"
+        )
+        .agg((pl.col("UnitPrice").mean() / 10000).cast(pl.Int16))
+        .with_columns(pl.format("{}万円/坪", pl.col("UnitPrice")))
+    )
+
+    lat_mean, long_mean = (
+        df_agg.select("Latitude", "Longitude").unique().mean().to_numpy().flatten()
+    )
+
+    m = folium.Map([lat_mean, long_mean], zoom_start=15)
+    for row in df_agg.rows(named=True):
+        popup = folium.Popup(row["UnitPrice"], min_width=50, max_width=100)
+
+        folium.Marker(
+            location=[row["Latitude"], row["Longitude"]],
+            popup=popup,
+            tooltip=row["DistrictName"],
+        ).add_to(m)
+
+    st_folium(m, width=1200, height=800, returned_objects=[])
+
+
+st.write(
+    "「このサービスは、国土交通省の不動産情報ライブラリのAPI機能を使用していますが、提供情報の最新性、正確性、完全性等が保証されたものではありません。」"
+)
