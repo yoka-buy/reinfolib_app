@@ -89,7 +89,7 @@ df_extract = df.filter(
 
 
 if df_extract.shape[0] == 0:
-    st.write("データがありません。絞り込み条件を変えて再実行してください。")
+    st.warning("データがありません。絞り込み条件を変更してください。", icon="⚠️")
 else:
     df_agg = (
         df_extract.group_by(
@@ -116,6 +116,6 @@ else:
     st_folium(m, width=1200, height=800, returned_objects=[])
 
 
-st.write(
-    "「このサービスは、国土交通省の不動産情報ライブラリのAPI機能を使用していますが、提供情報の最新性、正確性、完全性等が保証されたものではありません。」"
+st.info(
+    "「このサービスは、国土交通省の不動産情報ライブラリのAPI機能を使用していますが、提供情報の最新性、正確性、完全性等が保証されたものではありません。」",
 )
