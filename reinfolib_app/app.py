@@ -34,22 +34,24 @@ def read_data():
 
 df = read_data()
 
-price_category_list = df["PriceCategory"].unique().sort().to_list()
+price_category_list = df["PriceCategory"].unique().sort(descending=True).to_list()
 period_list = df["Period"].unique().sort(descending=True).to_list()
 prefecture_list = df["Prefecture"].unique().sort().to_list()
 
 st.header("成約坪単価Viewer")
 
+
 with st.expander("絞り込み条件", expanded=True):
     st.subheader("地域")
     col1, col2 = st.columns(2)
-    with col2:
-        prefecture_search = st.text_input("検索ワード（都道府県）")
+    # with col2:
+    #     prefecture_search = st.text_input("検索ワード（都道府県）")
 
-    with col1:
-        prefecture = st.selectbox(
-            "都道府県", [s for s in prefecture_list if prefecture_search in s]
-        )
+    # with col1:
+    #     prefecture = st.selectbox(
+    #         "都道府県", [s for s in prefecture_list if prefecture_search in s]
+    #     )
+    prefecture = "福岡県"
 
     municipality_list = (
         df.filter(pl.col("Prefecture") == prefecture)["Municipality"]
@@ -81,10 +83,21 @@ with st.expander("絞り込み条件", expanded=True):
     st.subheader("時期")
     period = st.selectbox("時期", period_list)
 
+    st.subheader("築年数")
+    age_min, age_max = st.select_slider(
+        "築年数",
+        options=range(100),
+        value=(0, 99),
+        help="集計対象とする最小および最大の築年数を選んでください",
+    )
+
+
 df_extract = df.filter(
     (pl.col("PriceCategory") == price_category)
     & (pl.col("Prefecture") == prefecture)
     & (pl.col("Municipality") == municipality)
+    & (age_min <= pl.col("Age"))
+    & (pl.col("Age") <= age_max)
 )
 
 
