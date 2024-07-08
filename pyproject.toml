@@ -11,6 +11,7 @@ polars = "^1.0.0"
 streamlit = "^1.36.0"
 folium = "^0.17.0"
 streamlit-folium = "^0.21.0"
+beautifulsoup4 = "^4.12.3"
 
 
 [tool.poetry.group.dev.dependencies]
